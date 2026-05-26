@@ -52,6 +52,12 @@ Some features are deprecated / unstable so they are placed in preview app. To en
 
 * 2026-01-14 chore: bump version
 * 2026-01-26 fix: typos and hysteria version check
+* 2026-04-28 chore: enhance release build workflow with multiple SDK versions and improved artifact handling
+* 2026-05-18 chore: adapt for legacy reverse proxy deprecation
+* 2026-05-19 feat: add ping response support for FakeDNS pools
+* 2026-05-25 feat: add Cloudflare Origin RSA CA option
+* 2026-05-27 feat: add subscription URL import and refresh management
+* 2026-05-27 fix: preserve full outbound keys for routed subscription nodes
 
 ## Changelog since 3.6.0
 

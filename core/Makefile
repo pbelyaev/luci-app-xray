@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-xray
-PKG_VERSION:=3.7.1
+PKG_VERSION:=3.8.0
 PKG_RELEASE:=1
 
 PKG_LICENSE:=MPLv2
@@ -15,7 +15,7 @@ define Package/$(PKG_NAME)
 	SECTION:=Custom
 	CATEGORY:=Extra packages
 	TITLE:=LuCI Support for Xray
-	DEPENDS:=firewall4 +kmod-nft-tproxy +luci-base +xray-core +dnsmasq +ca-bundle
+	DEPENDS:=firewall4 +kmod-nft-tproxy +luci-base +xray-core +dnsmasq +ca-bundle +uclient-fetch
 	PKGARCH:=all
 endef
 
@@ -126,6 +126,9 @@ endif
 	$(INSTALL_BIN) ./root/usr/share/xray/dnsmasq_include.ut $(1)/usr/share/xray/dnsmasq_include.ut
 	$(INSTALL_BIN) ./root/usr/share/xray/firewall_include.ut $(1)/usr/share/xray/firewall_include.ut
 	$(INSTALL_BIN) ./root/usr/share/xray/gen_config.uc $(1)/usr/share/xray/gen_config.uc
+	$(INSTALL_BIN) ./root/usr/share/xray/subscription_import.uc $(1)/usr/share/xray/subscription_import.uc
+	$(INSTALL_BIN) ./root/usr/share/xray/subscription_update.sh $(1)/usr/share/xray/subscription_update.sh
+	$(INSTALL_BIN) ./root/usr/share/xray/subscription_watch.sh $(1)/usr/share/xray/subscription_watch.sh
 	$(INSTALL_DIR) $(1)/usr/share/xray/common
 	$(INSTALL_DATA) ./root/usr/share/xray/common/config.mjs $(1)/usr/share/xray/common/config.mjs
 	$(INSTALL_DATA) ./root/usr/share/xray/common/stream.mjs $(1)/usr/share/xray/common/stream.mjs

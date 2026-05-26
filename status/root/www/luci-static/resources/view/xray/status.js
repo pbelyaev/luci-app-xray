@@ -82,6 +82,12 @@ function get_inbound_uci_description(config, key) {
 
 function outbound_format(server) {
     if (server["alias"]) {
+        if (server["subscription_stale"] === "1") {
+            return `${server["alias"]} [stale subscription]`;
+        }
+        if (server["subscription_managed"] === "1") {
+            return `${server["alias"]} [subscription]`;
+        }
         return server["alias"];
     }
     if (server["server"].includes(":")) {
@@ -94,7 +100,7 @@ function get_outbound_uci_description(config, key) {
     if (!key) {
         return "direct";
     }
-    const uci_key = key.slice(-9);
+    const uci_key = key;
     const uci_item = uci.get(config, uci_key);
     if (uci_item === null) {
         return "direct";

@@ -97,7 +97,9 @@ function outbounds(proxy, config, manual_tproxy, bridge, extra_inbound, fakedns)
         }
     }
     for (let i in keys(outbound_balancers_all)) {
-        push(result, ...server_outbound(config[substr(i, -9)], i, config));
+        const server_name_pos = rindex(i, ":");
+        const server_name = server_name_pos >= 0 ? substr(i, server_name_pos + 1) : substr(i, -9);
+        push(result, ...server_outbound(config[server_name], i, config));
     }
     return result;
 }

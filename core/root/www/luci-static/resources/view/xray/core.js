@@ -10,7 +10,17 @@
 'require view.xray.transport as transport';
 
 function server_alias(v) {
-    return v.alias || v.server + ":" + v.server_port;
+    if (!v) {
+        return _("missing server");
+    }
+    let label = v.alias || v.server + ":" + v.server_port;
+    if (v.subscription_stale == "1") {
+        return label + " [stale subscription]";
+    }
+    if (v.subscription_managed == "1") {
+        return label + " [subscription]";
+    }
+    return label;
 }
 
 function list_folded_format(config_data, k, noun, max_chars, mapping, empty) {
@@ -49,7 +59,7 @@ function destination_format(config_data, k, e, max_chars) {
                 return `<i>${_("use global settings")}</i>`;
             }
         }
-        return list_folded_format(config_data, k, "outbounds", max_chars, v => uci.get(config_data, v, "alias"), `<i>${_("direct")}</i>`)(s);
+        return list_folded_format(config_data, k, "outbounds", max_chars, v => server_alias(uci.get(config_data, v)), `<i>${_("direct")}</i>`)(s);
     };
 }
 
@@ -89,6 +99,53 @@ function access_control_format(config_data, s, t) {
         }
         return extra_outbound_format(config_data, uci.get(config_data, v, t), false);
     };
+}
+
+function timestamp_format(v) {
+    const ts = parseInt(v || "0");
+    if (!ts) {
+        return "-";
+    }
+    return new Date(ts * 1000).toLocaleString();
+}
+
+function subscription_status_format(config_data, s) {
+    const item = uci.get(config_data, s) || {};
+    const last_refresh = timestamp_format(item.last_refresh);
+    const status = item.last_status || _("never refreshed");
+    if (item.last_message) {
+        return E([], [
+            `${last_refresh} (${status}) `,
+            shared.badge("<strong>...</strong>", item.last_message)
+        ]);
+    }
+    return `${last_refresh} (${status})`;
+}
+
+function subscription_by_id(config_data, id) {
+    for (const s of uci.sections(config_data, "subscription")) {
+        if (s.subscription_id == id || s[".name"] == id) {
+            return s;
+        }
+    }
+    return null;
+}
+
+function subscription_source_format(config_data, s) {
+    const item = uci.get(config_data, s) || {};
+    if (item.subscription_managed != "1") {
+        return "-";
+    }
+    const subscription = subscription_by_id(config_data, item.subscription_source) || {};
+    const source = subscription.alias || item.subscription_source || "-";
+    const node = item.subscription_node_name || item.alias || item.server;
+    if (item.subscription_stale == "1") {
+        return E([], [
+            `${source}: ${node} `,
+            shared.badge(_("stale"), _("This node is no longer present in the subscription, but is still referenced by routing settings."))
+        ]);
+    }
+    return `${source}: ${node}`;
 }
 
 function check_resource_files(load_result) {
@@ -204,6 +261,9 @@ return view.extend({
         o = ss.taboption('general', form.Value, 'password', _('UserId / Password'), _('Fill user_id for vmess / VLESS, or password for other outbound (also supports <a href="https://github.com/XTLS/Xray-core/issues/158">Xray UUID Mapping</a>)'));
         o.rmempty = false;
 
+        o = ss.taboption('general', form.DummyValue, 'subscription_info', _('Subscription'));
+        o.textvalue = s => subscription_source_format(config_data, s);
+
         ss.tab('resolving', _("Server Hostname Resolving"));
 
         o = ss.taboption('resolving', form.ListValue, 'domain_strategy', _('Domain Strategy'), _("Whether to use IPv4 or IPv6 address if Server Hostname is a domain."));
@@ -254,6 +314,55 @@ return view.extend({
         o.monospace = true;
         o.rows = 12;
         o.validate = shared.validate_object;
+
+        s.tab('subscriptions', _('Subscriptions'));
+
+        o = s.taboption('subscriptions', form.SectionValue, "xray_subscriptions", form.GridSection, 'subscription', _('Subscription URLs'), _("Imported nodes are listed as regular Xray Servers. Routing selections are not changed automatically."));
+        ss = o.subsection;
+        ss.sortable = false;
+        ss.anonymous = true;
+        ss.addremove = true;
+        ss.nodescriptions = true;
+
+        let subscription_enabled = ss.option(form.Flag, 'enabled', _('Enable'));
+        subscription_enabled.default = "1";
+        subscription_enabled.rmempty = false;
+
+        o = ss.option(form.Value, "alias", _("Alias"));
+        o.rmempty = false;
+
+        o = ss.option(form.Value, 'url', _('Subscription URL'));
+        o.rmempty = false;
+        o.modalonly = true;
+        o.validate = function (section_id, value) {
+            if (value && (value.startsWith("http://") || value.startsWith("https://"))) {
+                return true;
+            }
+            return _("Only http:// and https:// subscription URLs are supported.");
+        };
+
+        o = ss.option(form.DynamicList, 'include_filter', _('Include Name Filter'), _("Case-insensitive substring match. Leave empty to include all nodes."));
+        o.modalonly = true;
+
+        o = ss.option(form.DynamicList, 'exclude_filter', _('Exclude Name Filter'), _("Case-insensitive substring match. Exclude filters have priority over include filters."));
+        o.modalonly = true;
+
+        o = ss.option(form.Value, 'refresh_interval', _('Refresh Every'));
+        o.datatype = "range(1, 100000)";
+        o.default = "24";
+        o.rmempty = false;
+        o.modalonly = true;
+
+        o = ss.option(form.ListValue, 'refresh_unit', _('Refresh Unit'));
+        o.value("minute", _("Minutes"));
+        o.value("hour", _("Hours"));
+        o.value("day", _("Days"));
+        o.default = "hour";
+        o.rmempty = false;
+        o.modalonly = true;
+
+        o = ss.option(form.DummyValue, 'last_status', _('Last Refresh'));
+        o.textvalue = s => subscription_status_format(config_data, s);
 
         s.tab('inbounds', _('Inbounds'));
 
