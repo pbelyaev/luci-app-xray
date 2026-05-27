@@ -58,6 +58,7 @@ Some features are deprecated / unstable so they are placed in preview app. To en
 * 2026-05-25 feat: add Cloudflare Origin RSA CA option
 * 2026-05-27 feat: add subscription URL import and refresh management
 * 2026-05-27 fix: preserve full outbound keys for routed subscription nodes
+* 2026-05-27 fix: avoid subscription URL import parse_query reference error
 
 ## Changelog since 3.6.0
 
