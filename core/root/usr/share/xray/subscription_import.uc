@@ -54,6 +54,21 @@ function last_index(s, needle) {
     return result;
 }
 
+function parse_query(q) {
+    let result = {};
+    if (!q) {
+        return result;
+    }
+    for (let part in split(q, "&")) {
+        if (part == "") {
+            continue;
+        }
+        const kv = split(part, "=", 2);
+        result[url_decode(kv[0])] = url_decode(kv[1] || "");
+    }
+    return result;
+}
+
 function parse_link(raw) {
     raw = trim(raw || "");
     const scheme_end = index(raw, "://");
@@ -85,21 +100,6 @@ function parse_link(raw) {
         name: fragment,
         raw: raw
     };
-}
-
-function parse_query(q) {
-    let result = {};
-    if (!q) {
-        return result;
-    }
-    for (let part in split(q, "&")) {
-        if (part == "") {
-            continue;
-        }
-        const kv = split(part, "=", 2);
-        result[url_decode(kv[0])] = url_decode(kv[1] || "");
-    }
-    return result;
 }
 
 function parse_authority(authority) {
