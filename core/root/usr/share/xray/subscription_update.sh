@@ -4,6 +4,7 @@ CONFIG="xray_core"
 ACTION="${1:-due}"
 IMPORTER="/usr/share/xray/subscription_import.uc"
 FETCH_TIMEOUT=20
+HAPP_USER_AGENT="Happ/5.2.1"
 
 log() {
     logger -st xray-subscription[$$] -p4 "$*"
@@ -82,14 +83,69 @@ fetch_subscription() {
     wget -q -T "${FETCH_TIMEOUT}" -O "${output}" "${url}"
 }
 
+subscription_hwid() {
+    local url="$1"
+    local value
+
+    value="${url%%\#*}"
+    value="${value%%\?*}"
+    value="${value%/}"
+    value="${value##*/}"
+
+    [ -n "${value}" ] || value="xray"
+    printf "%s" "${value}"
+}
+
+fetch_happ_subscription() {
+    local url="$1"
+    local output="$2"
+    local hwid
+
+    hwid="$(subscription_hwid "${url}")"
+
+    if command -v uclient-fetch >/dev/null 2>&1; then
+        uclient-fetch -q -T "${FETCH_TIMEOUT}" -U "${HAPP_USER_AGENT}" --header "x-hwid: ${hwid}" -O "${output}" "${url}" 2>/dev/null && return 0
+    fi
+
+    wget -q -T "${FETCH_TIMEOUT}" -U "${HAPP_USER_AGENT}" --header "x-hwid: ${hwid}" -O "${output}" "${url}"
+}
+
+fetch_subscription_payload() {
+    local url="$1"
+    local output="$2"
+    local section="$3"
+
+    log "${section}: fetching subscription"
+    if fetch_subscription "${url}" "${output}"; then
+        log "${section}: standard fetch succeeded"
+        return 0
+    fi
+    rm -f "${output}"
+
+    log "${section}: standard fetch failed; retrying with Happ headers (hwid=$(subscription_hwid "${url}"))"
+    if fetch_happ_subscription "${url}" "${output}"; then
+        log "${section}: Happ header fetch succeeded"
+        return 0
+    fi
+
+    log "${section}: Happ header fetch failed"
+    return 1
+}
+
 refresh_subscription() {
     local section="$1"
     local enabled url tmp output rc
 
     enabled="$(uci -q get "${CONFIG}.${section}.enabled" 2>/dev/null || echo 1)"
-    [ "${enabled}" = "1" ] || return 0
+    if [ "${enabled}" != "1" ]; then
+        log "${section}: refresh skipped (disabled)"
+        return 0
+    fi
 
-    subscription_due "${section}" || return 0
+    if ! subscription_due "${section}"; then
+        log "${section}: refresh skipped (not due)"
+        return 0
+    fi
 
     url="$(uci -q get "${CONFIG}.${section}.url" 2>/dev/null)"
     case "${url}" in
@@ -103,13 +159,14 @@ refresh_subscription() {
     esac
 
     tmp="/tmp/xray_subscription_$$_$(echo "${section}" | tr -c 'A-Za-z0-9_' '_')"
-    if ! fetch_subscription "${url}" "${tmp}"; then
+    if ! fetch_subscription_payload "${url}" "${tmp}" "${section}"; then
         rm -f "${tmp}"
         set_subscription_status "${section}" "error" "fetch failed"
         log "${section}: fetch failed"
         return 0
     fi
 
+    log "${section}: importing subscription payload"
     output="$(/usr/bin/ucode "${IMPORTER}" "${section}" "${tmp}" 2>&1)"
     rc=$?
     rm -f "${tmp}"
@@ -123,10 +180,12 @@ refresh_subscription() {
     log "${section}: ${output}"
     case "${output}" in
         *changed=1*)
+            log "${section}: imported nodes changed"
             return 10
             ;;
     esac
 
+    log "${section}: imported nodes unchanged"
     return 0
 }
 
